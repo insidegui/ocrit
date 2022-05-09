@@ -28,7 +28,7 @@ struct ocrit: AsyncParsableCommand {
             }
         }
         
-        let imageURLs = imagePaths.map(URL.init(fileURLWithPath:))
+        let imageURLs = imagePaths.map(URL.init(fileUrlWithTildePath:))
         
         fputs("Validating images…\n", stderr)
         
@@ -99,5 +99,20 @@ extension URL {
         var dirCheck = ObjCBool(false)
         guard FileManager.default.fileExists(atPath: path, isDirectory: &dirCheck) else { return false }
         return dirCheck.boolValue
+    }
+    
+    init(fileUrlWithTildePath: String) {
+        let tildeExpanded = fileUrlWithTildePath.exapnadingTildeInPath
+        let currentDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        
+        self.init(fileURLWithPath: tildeExpanded, relativeTo: currentDirectory)
+    }
+}
+
+extension String {
+    var exapnadingTildeInPath: String {
+        let ns = NSString(string: self)
+        let expanded = ns.expandingTildeInPath
+        return String(expanded)
     }
 }
