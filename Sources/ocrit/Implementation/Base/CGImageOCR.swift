@@ -14,9 +14,9 @@ final class CGImageOCR {
     private var request: VNRecognizeTextRequest?
     private var handler: VNImageRequestHandler?
 
-    func run() async throws -> String {
+    func run(fast: Bool) async throws -> String {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) -> Void in
-            performRequest(with: image) { request, error in
+            performRequest(with: image, level: fast ? .fast : .accurate) { request, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
@@ -37,11 +37,11 @@ final class CGImageOCR {
         }
     }
 
-    func performRequest(with image: CGImage, completion: @escaping VNRequestCompletionHandler) {
+    func performRequest(with image: CGImage, level: VNRequestTextRecognitionLevel, completion: @escaping VNRequestCompletionHandler) {
         let newHandler = VNImageRequestHandler(cgImage: image)
 
         let newRequest = VNRecognizeTextRequest(completionHandler: completion)
-        newRequest.recognitionLevel = .accurate
+        newRequest.recognitionLevel = level
 
         do {
             if let customLanguages = try resolveLanguages(for: newRequest) {

@@ -11,7 +11,7 @@ final class ImageOCROperation: OCROperation {
         self.customLanguages = customLanguages
     }
 
-    func run() throws -> AsyncThrowingStream<OCRResult, Error> {
+    func run(fast: Bool) throws -> AsyncThrowingStream<OCRResult, Error> {
         guard let image = NSImage(contentsOf: imageURL) else {
             throw Failure("Couldn't read image at \(imageURL.path)")
         }
@@ -27,7 +27,7 @@ final class ImageOCROperation: OCROperation {
         return AsyncThrowingStream { continuation in
             Task {
                 do {
-                    let text = try await ocr.run()
+                    let text = try await ocr.run(fast: fast)
 
                     let result = OCRResult(text: text, suggestedFilename: filename)
 

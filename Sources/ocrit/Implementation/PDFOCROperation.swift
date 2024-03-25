@@ -11,7 +11,7 @@ final class PDFOCROperation: OCROperation {
         self.customLanguages = customLanguages
     }
 
-    func run() throws -> AsyncThrowingStream<OCRResult, Error> {
+    func run(fast: Bool) throws -> AsyncThrowingStream<OCRResult, Error> {
         let basename = documentURL.deletingPathExtension().lastPathComponent
 
         guard let document = CGPDFDocument(documentURL as CFURL) else {
@@ -30,7 +30,7 @@ final class PDFOCROperation: OCROperation {
 
                         let ocr = CGImageOCR(image: cgImage, customLanguages: customLanguages)
 
-                        let text = try await ocr.run()
+                        let text = try await ocr.run(fast: fast)
 
                         let result = OCRResult(text: text, suggestedFilename: basename + "-\(page)")
 

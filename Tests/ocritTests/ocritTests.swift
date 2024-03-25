@@ -76,6 +76,16 @@ final class OCRITTests: XCTestCase {
         )
     }
 
+    func testSpeedOverAccuracy() throws {
+        let input = fixturePath(named: "test-en.png")
+
+        try AssertExecuteCommand(
+            command: "ocrit \(input) --fast",
+            expected: .stdout(.equal("test-en.png:\nSome text in English")),
+            exitCode: .success
+        )
+    }
+
     func testMultipleImagesOutputToDirectory() throws {
         let outputURL = try getScratchDirectory()
         
