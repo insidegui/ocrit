@@ -21,6 +21,9 @@ struct ocrit: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Language code to use for the recognition, can be repeated to select multiple languages")
     var language: [String] = []
 
+    @Flag(name: .shortAndLong, help: "Uses an OCR algorithm that prioritizes speed over accuracy")
+    var fast = false
+
     private var shouldOutputToStdout: Bool { output == "-" }
 
     func run() async throws {
@@ -77,7 +80,7 @@ struct ocrit: AsyncParsableCommand {
             let operation = operationType.init(fileURL: url, customLanguages: language)
 
             do {
-                for try await result in try operation.run() {
+                for try await result in try operation.run(fast: fast) {
                     try writeResult(result, for: url, outputDirectoryURL: outputDirectoryURL)
                 }
             } catch {

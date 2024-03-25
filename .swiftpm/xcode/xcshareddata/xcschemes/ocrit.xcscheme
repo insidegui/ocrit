@@ -94,7 +94,7 @@
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "/Users/insidegui/Developer/_projects/ocrit/Tests/ocritTests/Resources/test-multi-en-ko.png"
+            argument = "/Users/insidegui/Developer/_projects/ocrit/Tests/ocritTests/Resources/test-en.png"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
@@ -107,11 +107,11 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-l"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "ko-KR"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-l"
@@ -119,6 +119,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "en-US"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "--fast"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

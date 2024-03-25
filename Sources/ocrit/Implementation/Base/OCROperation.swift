@@ -7,5 +7,5 @@ struct OCRResult {
 
 protocol OCROperation {
     init(fileURL: URL, customLanguages: [String])
-    func run() throws -> AsyncThrowingStream<OCRResult, Error>
+    func run(fast: Bool) throws -> AsyncThrowingStream<OCRResult, Error>
 }
