@@ -52,7 +52,20 @@ final class OCRITTests: XCTestCase {
             exitCode: .success
         )
     }
-    
+
+    func testMultipleLanguages() throws {
+        let input = fixturePath(named: "test-multi-en-ko.png")
+
+        try AssertExecuteCommand(
+            command: "ocrit \(input) -l ko-KR -l en-US",
+            expected: [
+                .stdout(.contain("like turtles")),
+                .stdout(.contain("나는 거북이를 좋아한다")),
+            ],
+            exitCode: .success
+        )
+    }
+
     func testInvalidLanguageExitsWithError() throws {
         let input = fixturePath(named: "test-en.png")
         
@@ -62,7 +75,7 @@ final class OCRITTests: XCTestCase {
             exitCode: .failure
         )
     }
-    
+
     func testMultipleImagesOutputToDirectory() throws {
         let outputURL = try getScratchDirectory()
         
@@ -89,6 +102,59 @@ final class OCRITTests: XCTestCase {
             let output = try String(contentsOf: outURL, encoding: .utf8)
             
             XCTAssertTrue(output.contains(text), "Output file for \(language) doesn't contain \(text): \(outURL.path)")
+        }
+    }
+
+    func testSinglePagePDFOutputToStdout() throws {
+        let input = fixturePath(named: "test-en-singlepage.pdf")
+
+        try AssertExecuteCommand(
+            command: "ocrit \(input)",
+            expected: .stdout(.contain("You can update your iPhone to iOS 17.4.1 by heading to the Settings app")),
+            exitCode: .success
+        )
+    }
+
+    func testMultipagePDFOutputToStdout() throws {
+        let input = fixturePath(named: "test-en-multipage.pdf")
+
+        try AssertExecuteCommand(
+            command: "ocrit \(input)",
+            expected: [
+                .stdout(.contain("You can update your iPhone to iOS 17.4.1 by heading to the Settings app")), /// From page 1
+                .stdout(.contain("When you add a resource to your Swift package, Xcode detects common resource types")), /// From page 2
+                .stdout(.contain("To add a resource that Xcode can't handle automatically")), /// From page 3
+            ],
+            exitCode: .success
+        )
+    }
+
+    func testMultipagePDFOutputToDirectory() throws {
+        let outputURL = try getScratchDirectory()
+
+        print("[+] Scratch directory for this test case is at \(outputURL.path)")
+
+        let expectations = [
+            ("test-en-multipage-1.txt", "You can update your iPhone to iOS 17.4.1 by heading to the Settings app"),
+            ("test-en-multipage-2.txt", "When you add a resource to your Swift package, Xcode detects common resource types"),
+            ("test-en-multipage-3.txt", "To add a resource that Xcode can't handle automatically"),
+        ]
+
+        let input = fixturePath(named: "test-en-multipage.pdf")
+
+        try AssertExecuteCommand(
+            command: "ocrit \(input) --output \(outputURL.path)",
+            exitCode: .success
+        )
+
+        for (outputFilename, text) in expectations {
+            let outURL = outputURL.appendingPathComponent(outputFilename)
+
+            XCTAssertTrue(FileManager.default.fileExists(atPath: outURL.path), "Output file \(outputFilename) wasn't written")
+
+            let output = try String(contentsOf: outURL, encoding: .utf8)
+
+            XCTAssertTrue(output.localizedCaseInsensitiveContains(text), "Output file \(outputFilename) doesn't contain \(text): \(outURL.path)")
         }
     }
 }

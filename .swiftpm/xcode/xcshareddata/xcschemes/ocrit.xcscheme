@@ -94,7 +94,7 @@
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "/Users/insidegui/Developer/_projects/ocrit/Tests/ocritTests/Resources/test-en.png"
+            argument = "/Users/insidegui/Developer/_projects/ocrit/Tests/ocritTests/Resources/test-multi-en-ko.png"
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
@@ -104,6 +104,14 @@
          <CommandLineArgument
             argument = "~/Downloads/output"
             isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-l"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "ko-KR"
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-l"
