@@ -21,7 +21,10 @@ let package = Package(
             resources: [
                 .copy("Resources/test-en.png"),
                 .copy("Resources/test-pt.png"),
-                .copy("Resources/test-zh.png")
+                .copy("Resources/test-zh.png"),
+                .copy("Resources/test-multi-en-ko.png"),
+                .copy("Resources/test-en-singlepage.pdf"),
+                .copy("Resources/test-en-multipage.pdf"),
             ]
         ),
     ]
