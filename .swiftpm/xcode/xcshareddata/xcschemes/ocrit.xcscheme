@@ -99,11 +99,11 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-o"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "~/Downloads/output"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-l"
