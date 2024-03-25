@@ -1,6 +1,7 @@
 import Foundation
 import ArgumentParser
 import UniformTypeIdentifiers
+import class Vision.VNRecognizeTextRequest
 
 struct Failure: LocalizedError, CustomStringConvertible {
     var errorDescription: String?
@@ -30,7 +31,10 @@ struct ocrit: AsyncParsableCommand {
                 throw Failure("Output path doesn't exist (or is not a directory) at \(output)")
             }
         }
-        
+
+        /// Validate languages before attempting any OCR operations so that we can exit early in case there's an unsupported language.
+        try VNRecognizeTextRequest.validateLanguages(with: language)
+
         let imageURLs = imagePaths.map(URL.init(fileUrlWithTildePath:))
         
         fputs("Validating images…\n", stderr)
@@ -77,6 +81,11 @@ struct ocrit: AsyncParsableCommand {
                     try writeResult(result, for: url, outputDirectoryURL: outputDirectoryURL)
                 }
             } catch {
+                /// Exit with error if there's only one image, otherwise we won't interrupt execution and will keep trying the other ones.
+                guard imageURLs.count > 1 else {
+                    throw error
+                }
+
                 fputs("OCR failed for \(url.lastPathComponent): \(error.localizedDescription)\n", stderr)
             }
         }
