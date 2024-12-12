@@ -2,6 +2,7 @@ import Foundation
 import ArgumentParser
 import UniformTypeIdentifiers
 import class Vision.VNRecognizeTextRequest
+import PathKit
 
 struct Failure: LocalizedError, CustomStringConvertible {
     var errorDescription: String?
@@ -13,33 +14,32 @@ struct Failure: LocalizedError, CustomStringConvertible {
 struct ocrit: AsyncParsableCommand {
     
     @Argument(help: "Path or list of paths for the images")
-    var imagePaths: [String]
-    
-    @Option(name: .shortAndLong, help: "Path to a directory where the txt files will be written to, or - for standard output")
-    var output: String = "-"
-    
+    var imagePaths: [Path]
+
+    @Option(
+        name: .shortAndLong, help: "Path to a directory where the txt files will be written to, or - for standard output"
+    )
+    var output: Output = .stdOutput
+
     @Option(name: .shortAndLong, help: "Language code to use for the recognition, can be repeated to select multiple languages")
     var language: [String] = []
 
     @Flag(name: .shortAndLong, help: "Uses an OCR algorithm that prioritizes speed over accuracy")
     var fast = false
 
-    private var shouldOutputToStdout: Bool { output == "-" }
 
-    func run() async throws {
-        let outputDirectoryURL = URL(fileUrlWithTildePath: output)
-
-        if !shouldOutputToStdout {
-            guard outputDirectoryURL.isExistingDirectory else {
-                throw Failure("Output path doesn't exist (or is not a directory) at \(output)")
-            }
+    func validate() throws {
+        if let path = output.path, !path.isDirectory {
+            throw ValidationError("Output path doesn't exist (or is not a directory) at \(output)")
         }
 
         /// Validate languages before attempting any OCR operations so that we can exit early in case there's an unsupported language.
         try VNRecognizeTextRequest.validateLanguages(with: language)
+    }
 
-        let imageURLs = imagePaths.map(URL.init(fileUrlWithTildePath:))
-        
+    func run() async throws {
+        let imageURLs = imagePaths.map(\.url)
+
         fputs("Validating images…\n", stderr)
 
         var operationType: OCROperation.Type = ImageOCROperation.self
@@ -81,7 +81,7 @@ struct ocrit: AsyncParsableCommand {
 
             do {
                 for try await result in try operation.run(fast: fast) {
-                    try writeResult(result, for: url, outputDirectoryURL: outputDirectoryURL)
+                    try writeResult(result, for: url)
                 }
             } catch {
                 /// Exit with error if there's only one image, otherwise we won't interrupt execution and will keep trying the other ones.
@@ -94,8 +94,8 @@ struct ocrit: AsyncParsableCommand {
         }
     }
     
-    private func writeResult(_ result: OCRResult, for imageURL: URL, outputDirectoryURL: URL) throws {
-        guard !shouldOutputToStdout else {
+    private func writeResult(_ result: OCRResult, for imageURL: URL) throws {
+        guard let outputDirectoryURL = output.path?.url else {
             print(imageURL.lastPathComponent + ":")
             print(result.text + "\n")
             return
@@ -111,22 +111,6 @@ struct ocrit: AsyncParsableCommand {
         {
             try outputFileURL.setResourceValues(attributes)
         }
-    }
-    
-}
-
-extension URL {
-    var isExistingDirectory: Bool {
-        var dirCheck = ObjCBool(false)
-        guard FileManager.default.fileExists(atPath: path, isDirectory: &dirCheck) else { return false }
-        return dirCheck.boolValue
-    }
-    
-    init(fileUrlWithTildePath: String) {
-        let tildeExpanded = fileUrlWithTildePath.exapnadingTildeInPath
-        let currentDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        
-        self.init(fileURLWithPath: tildeExpanded, relativeTo: currentDirectory)
     }
 }
 

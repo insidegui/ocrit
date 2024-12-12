@@ -72,7 +72,7 @@ final class OCRITTests: XCTestCase {
         try AssertExecuteCommand(
             command: "ocrit \(input) --language someinvalidlanguage",
             expected: .stderr(.contain("Unsupported language")),
-            exitCode: .failure
+            exitCode: .validationFailure
         )
     }
 
