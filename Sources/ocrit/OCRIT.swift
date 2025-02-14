@@ -117,11 +117,3 @@ struct ocrit: AsyncParsableCommand {
         }
     }
 }
-
-extension String {
-    var exapnadingTildeInPath: String {
-        let ns = NSString(string: self)
-        let expanded = ns.expandingTildeInPath
-        return String(expanded)
-    }
-}
