@@ -30,7 +30,11 @@ struct ocrit: AsyncParsableCommand {
 
     func validate() throws {
         if let path = output.path, !path.isDirectory {
-            throw ValidationError("Output path doesn't exist (or is not a directory) at \(output)")
+            do {
+                try path.mkdir()
+            } catch {
+                throw ValidationError("Output path doesn't exist or is not a directory, and a directory couldn't be created at \(output). \(error)")
+            }
         }
 
         /// Validate languages before attempting any OCR operations so that we can exit early in case there's an unsupported language.
