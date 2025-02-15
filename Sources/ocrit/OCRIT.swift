@@ -24,9 +24,24 @@ struct ocrit: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Language code to use for the recognition, can be repeated to select multiple languages")
     var language: [String] = []
 
+    @Option(name: [.customShort("t"), .customLong("translate")], help: """
+    Language code to translate the detected text into. Requires macOS 15 or later.
+    
+    When using this option, the source language must be specified with -l/--language.
+    
+    ⚠️ This feature is experimental, use at your own risk.
+    """)
+    var translateIntoLanguageCode: String?
+
+    @Flag(name: .shortAndLong, help: """
+    When -t/--translate is used, delete the original text files and only keep the translated ones.
+    
+    Also omits printing original untranslated text when output is stdout. 
+    """)
+    var deleteOriginals = false
+
     @Flag(name: .shortAndLong, help: "Uses an OCR algorithm that prioritizes speed over accuracy")
     var fast = false
-
 
     func validate() throws {
         if let path = output.path, !path.isDirectory {
@@ -39,9 +54,43 @@ struct ocrit: AsyncParsableCommand {
 
         /// Validate languages before attempting any OCR operations so that we can exit early in case there's an unsupported language.
         try VNRecognizeTextRequest.validateLanguages(with: language)
+
+        guard translateIntoLanguageCode != nil else { return }
+
+        guard #available(macOS 15.0, *) else {
+            throw ValidationError("Translation is only available in macOS 15 or later.")
+        }
+        guard !language.isEmpty else {
+            throw ValidationError("When using -t/--translate, the language of the document must be specified with -l/--language.")
+        }
+        guard language.count == 1 else {
+            throw ValidationError("When using -t/--translate, only a single language can be specified with -l/--language.")
+        }
+    }
+
+    private func checkTranslationAvailability() async throws {
+        guard #available(macOS 15.0, *) else { return }
+        guard let translateIntoLanguageCode else { return }
+
+        let availability = await AppleTranslateOperation.availability(from: language[0], to: translateIntoLanguageCode)
+
+        switch availability {
+        case .supported:
+            throw ValidationError("Translation is not supported from \"\(language[0])\" to \"\(translateIntoLanguageCode)\".")
+        case .installed:
+            break
+        case .unsupported:
+            throw ValidationError("""
+            In order to translate from \"\(language[0])\" to \"\(translateIntoLanguageCode)\", language support must be installed on your system.
+            
+            Go to System Settings > Language & Region > Translation Languages to install the languages.
+            """)
+        }
     }
 
     func run() async throws {
+        try await checkTranslationAvailability()
+        
         let imageURLs = imagePaths.map(\.url)
 
         fputs("Validating images…\n", stderr)
@@ -82,10 +131,18 @@ struct ocrit: AsyncParsableCommand {
         
         for url in imageURLs {
             let operation = operationType.init(fileURL: url, customLanguages: language)
+            let fileAttributes = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
 
             do {
                 for try await result in try operation.run(fast: fast) {
-                    try writeResult(result, for: url)
+                    let translation = await runTranslationIfNeeded(for: result)
+
+                    try await processResult(
+                        result,
+                        translation: translation,
+                        for: url,
+                        fileAttributes: fileAttributes
+                    )
                 }
             } catch {
                 /// Exit with error if there's only one image, otherwise we won't interrupt execution and will keep trying the other ones.
@@ -97,31 +154,104 @@ struct ocrit: AsyncParsableCommand {
             }
         }
     }
-    
-    private func writeResult(_ result: OCRResult, for imageURL: URL) throws {
+
+    private func runTranslationIfNeeded(for result: OCRResult) async -> TranslationResult? {
+        guard #available(macOS 15.0, *) else { return nil }
+        guard let translateIntoLanguageCode else { return nil }
+
+        do {
+            let operation = AppleTranslateOperation(
+                text: result.text,
+                inputLanguage: language[0],
+                outputLanguage: translateIntoLanguageCode
+            )
+
+            let result = try await operation.run()
+
+            return result
+        } catch {
+            fputs("WARN: Translation failed for \"\(result.suggestedFilename)\". \(error)", stderr)
+            return nil
+        }
+    }
+
+    private func processResult(_ result: OCRResult, translation: TranslationResult?, for imageURL: URL, fileAttributes: URLResourceValues?) async throws {
         guard let outputDirectoryURL = output.path?.url else {
-            print(imageURL.lastPathComponent + ":")
-            print(result.text + "\n")
+            writeStandardOutput(for: result, translation: translation, imageURL: imageURL)
             return
         }
         
-        var outputFileURL = outputDirectoryURL
+        let outputFileURL = outputDirectoryURL
             .appendingPathComponent(result.suggestedFilename)
             .appendingPathExtension("txt")
         
         try result.text.write(to: outputFileURL, atomically: true, encoding: .utf8)
 
-        if let attributes = try? imageURL.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
-        {
-            try outputFileURL.setResourceValues(attributes)
+        outputFileURL.mergeAttributes(fileAttributes)
+
+        guard let translation else { return }
+
+        let translatedFilename = outputFileURL
+            .deletingPathExtension()
+            .lastPathComponent + "_\(translation.outputLanguage)"
+
+        let translatedURL = outputFileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(translatedFilename, conformingTo: .plainText)
+
+        try translation.translatedText.write(
+            to: translatedURL,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        translatedURL.mergeAttributes(fileAttributes)
+
+        outputFileURL.deleteIfNeeded(deleteOriginals)
+    }
+
+    private func writeStandardOutput(for result: OCRResult, translation: TranslationResult?, imageURL: URL) {
+        if let translation {
+            /// Don't print out original untranslated OCR if -d is specified.
+            if !deleteOriginals {
+                print("\(imageURL.lastPathComponent) (\(translation.inputLanguage))" + ":")
+                print(result.text.trimmingCharacters(in: .whitespacesAndNewlines) + "\n")
+            }
+
+            print("\(imageURL.lastPathComponent) (\(translation.outputLanguage))" + ":")
+            print(translation.translatedText.trimmingCharacters(in: .whitespacesAndNewlines) + "\n")
+        } else {
+            print(imageURL.lastPathComponent + ":")
+            print(result.text.trimmingCharacters(in: .whitespacesAndNewlines) + "\n")
         }
     }
 }
 
-extension String {
-    var exapnadingTildeInPath: String {
-        let ns = NSString(string: self)
-        let expanded = ns.expandingTildeInPath
-        return String(expanded)
+// MARK: - Helpers
+
+private extension URL {
+    /// We don't want the entire OCR operation to fail if the tool can't copy file attributes from the image into the OCRed txt.
+    /// This function attempts to merge the attributes and just logs to stderr if that fails.
+    func mergeAttributes(_ values: URLResourceValues?) {
+        guard let values else { return }
+
+        var mSelf = self
+
+        do {
+            try mSelf.setResourceValues(values)
+        } catch {
+            fputs("WARN: Failed to set file attributes for \"\(lastPathComponent)\". \(error)\n", stderr)
+        }
+    }
+
+    /// Syntactic sugar for conditionally deleting a file with a non-fatal error.
+    func deleteIfNeeded(_ delete: Bool) {
+        guard delete else { return }
+
+        do {
+            try FileManager.default.removeItem(at: self)
+        } catch {
+            fputs("WARN: Failed to delete \"\(lastPathComponent)\". \(error)\n", stderr)
+        }
     }
 }

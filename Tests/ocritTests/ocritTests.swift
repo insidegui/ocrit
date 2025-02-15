@@ -167,6 +167,116 @@ final class OCRITTests: XCTestCase {
             XCTAssertTrue(output.localizedCaseInsensitiveContains(text), "Output file \(outputFilename) doesn't contain \(text): \(outURL.path)")
         }
     }
+
+    func testBasicTranslation() throws {
+        guard #available(macOS 15.0, *) else {
+            fputs("\(#function) skipped because this feature requires macOS 15 or later.\n", stderr)
+            return
+        }
+
+        flakyWarn()
+
+        let input = fixturePath(named: "test-en.png")
+
+        try AssertExecuteCommand(
+            command: "ocrit \(input) -l en-US -t pt-BR",
+            expected: .stdout(.equal("""
+            test-en.png (en-US):
+            Some text in English
+            
+            test-en.png (pt-BR):
+            Algum texto em inglês
+            """)),
+            exitCode: .success
+        )
+    }
+
+    func testBasicTranslationChinese() throws {
+        guard #available(macOS 15.0, *) else {
+            fputs("\(#function) skipped because this feature requires macOS 15 or later.\n", stderr)
+            return
+        }
+
+        flakyWarn()
+
+        let input = fixturePath(named: "test-zh.png")
+
+        try AssertExecuteCommand(
+            command: "ocrit \(input) --language zh-Hans --translate en-US",
+            expected: [
+                .stderr(.contain("zh-Hans")), /// should print selected language to stderr
+                .stdout(.contain("一些中文文本")), /// should print correct OCR result to stdout
+                .stdout(.contain("Some Chinese texts")) /// should print translated result to stdout
+            ],
+            exitCode: .success
+        )
+    }
+
+    func testBasicTranslationDeleteOriginals() throws {
+        guard #available(macOS 15.0, *) else {
+            fputs("\(#function) skipped because this feature requires macOS 15 or later.\n", stderr)
+            return
+        }
+
+        flakyWarn()
+
+        let input = fixturePath(named: "test-en.png")
+
+        /// When -d is specified, only the translated text should be written to stdout.
+        try AssertExecuteCommand(
+            command: "ocrit \(input) -l en-US -t pt-BR -d",
+            expected: .stdout(.equal("""
+            test-en.png (pt-BR):
+            Algum texto em inglês
+            """)),
+            exitCode: .success
+        )
+    }
+
+    func testPDFTranslation() throws {
+        guard #available(macOS 15.0, *) else {
+            fputs("\(#function) skipped because this feature requires macOS 15 or later.\n", stderr)
+            return
+        }
+
+        flakyWarn()
+
+        let outputURL = try getScratchDirectory()
+
+        print("[+] Scratch directory for this test case is at \(outputURL.path)")
+
+        let expectations = [
+            ("test-en-multipage-1.txt", "You can update your iPhone to iOS 17.4.1 by heading to the Settings app"),
+            ("test-en-multipage-2.txt", "When you add a resource to your Swift package, Xcode detects common resource types"),
+            ("test-en-multipage-3.txt", "To add a resource that Xcode can't handle automatically"),
+
+            ("test-en-multipage-1_pt-BR.txt", "Você pode atualizar seu iPhone para o iOS 17.4.1 indo para o aplicativo Configurações"),
+            ("test-en-multipage-2_pt-BR.txt", "Quando você adiciona um recurso ao seu pacote Swift"),
+            ("test-en-multipage-3_pt-BR.txt", "Para adicionar um recurso que o Xcode não pode manipular automaticamente"),
+        ]
+
+        let input = fixturePath(named: "test-en-multipage.pdf")
+
+        try AssertExecuteCommand(
+            command: "ocrit \(input) --output \(outputURL.path) -l en-US -t pt-BR",
+            exitCode: .success
+        )
+
+        for (outputFilename, text) in expectations {
+            let outURL = outputURL.appendingPathComponent(outputFilename)
+
+            XCTAssertTrue(FileManager.default.fileExists(atPath: outURL.path), "Output file \(outputFilename) wasn't written")
+
+            let output = try String(contentsOf: outURL, encoding: .utf8)
+
+            XCTAssertTrue(output.localizedCaseInsensitiveContains(text), "Output file \(outputFilename) doesn't contain \(text): \(outURL.path)")
+        }
+
+    }
+
+    private func flakyWarn() {
+        fputs("WARNING: Translation tests are likely going to be flaky as translation models get updated by Apple.\n", stderr)
+    }
 }
 
 private extension OCRITTests {
